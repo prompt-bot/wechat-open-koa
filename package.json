@@ -1,0 +1,36 @@
+{
+    "name": "wechat-open-koa",
+    "version": "1.0.0",
+    "description": "微信开放平台工具套件。支持第三方平台代理公众号，完成网页授权、消息事件处理、JSSDK接口调用",
+    "main": "index.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ntfs32/wechat-open-koa.git"
+    },
+    "keywords": [
+        "微信",
+        "公众号",
+        "微信开放平台",
+        "第三方平台",
+        "网页授权",
+        "OAuth",
+        "JS SDK",
+        "小程序",
+        "事件",
+        "消息",
+        "服务号",
+        "订阅号"
+    ],
+    "author": "shaddock",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/ntfs32/wechat-open-koa/issues"
+    },
+    "homepage": "https://github.com/ntfs32/wechat-open-koa#readme",
+    "dependencies": {
+        "axios": "^0.21.1",
+        "lodash": "^4.17.21",
+        "wechat-encrypt": "^1.1.0",
+        "xml2js": "^0.4.19"
+    }
+}
