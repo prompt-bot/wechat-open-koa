@@ -1,14 +1,9 @@
 name: Test and Publish
 
 on:
-  pull_request:
-    branches:
-      - master
-      - tag
   push:
-    branches:
-      # - master
-      - tag
+    tags:
+      - v*.*.*
 
 jobs:
   build:
