@@ -2,7 +2,7 @@
 
 **Node.js 微信第三方服务平台。**
 
-### 示例代码
+## 示例代码
 
 ```bash
 yarn add wechat-open-koa
@@ -12,6 +12,7 @@ yarn add wechat-open-koa
 const Koa = require('koa')
 const app = new Koa()
 const { WechatOpen, Request, Constant } = require('wechat-open-koa')
+const _ = require('lodash')
 
 // 微信第三方平台列表信息
 // 请先申请公众平台账号，在创建服务平台应用，获取一下信息
@@ -36,13 +37,13 @@ app.use('/wechat/events', toolkit.events())
 // 授权第三方平台接管公众号或者小程序管理权限
 app.get(`/wechat/auth/:componentAppId`, (ctx, next) => {
     const { componentAppId } = ctx.params;
-    const { pageStyle = 1 } = ctx.query;
+    const { pageStyle = Constant.PAGE_STYLE_PC } = ctx.query;
 
     let authMiddleware = toolkit.auth(componentAppId, `${ctx.request.origin}/api/wechat/open/authcode`, AUTH_TYPE_BOTH, _.toNumber(pageStyle)); // 第三方平台网页授权中间件
     return authMiddleware(ctx, next);
 })
 
-// 公众号消息接收URL
+// 公众号消息接收URL,处理全网发布
 app.post('/wechat/open/message/:componentAppId/:authorizerAppId', async (ctx) => {
     const { componentAppId } = ctx.params;
     let msgMiddleware = toolkit.message(componentAppId); // 授权方用户消息接收中间件
@@ -58,7 +59,7 @@ app.post('/wechat/open/message/:componentAppId/:authorizerAppId', async (ctx) =>
 app.get('/wechat/open/oauth/:componentAppId/:authorizerAppId', async (ctx, next) => {
     const { componentAppId, authorizerAppId } = ctx.params;
     let state = Buffer.from(componentAppId).toString('base64');
-    let oauthMiddleware = toolkit.oauth(componentAppId, authorizerAppId, `${ctx.request.origin}/api/wechat/open/oauthcode`, OAUTH_TYPE_USERINFO, state); // 授权方网页授权中间件
+    let oauthMiddleware = toolkit.oauth(componentAppId, authorizerAppId, `${ctx.request.origin}/api/wechat/open/oauthcode`, Constant.OAUTH_TYPE_USERINFO, state); // 授权方网页授权中间件
     return oauthMiddleware(ctx, next);
 })
 // 处理微信dengue回调
@@ -122,7 +123,7 @@ await coApi.sendText()
 
 
 
-### 实例方法 WechatOpen：
+### 实例方法 `class WechatOpen`：
 
 - **auth(componentAppId, redirectUrl [, authType])** [返回第三方平台授权中间件](#auth)
 
@@ -133,8 +134,148 @@ await coApi.sendText()
 - **autoTest(componentAppId)** [返回全网发布测试用例的中间件](#autoTest)
 
 - **oauth(componentAppId, authorizerAppId, redirectUrl [, scope [, state]])** [返回授权方网页授权中间件](#oauth)
+#### auth
 
-### 类方法 Request：
+返回第三方平台授权中间件。
+
+- **componentAppId** \<string\> 第三方平台APPID
+- **redirectUrl** \<string\> 授权成功后重定向的URL
+- **authType** \<number|string\> 授权的类型
+- **pageStyle** \<number\> 页面样式
+
+**redirectUrl** 该链接的域名必须和当前服务的域名相同，而且和微信第三方平台配置的域名相同。
+
+**authType** 指定授权时显示的可选项。**1** 表示仅展示公众号、**2** 表示仅展示小程序、**3** 表示展示公众号和小程序。默认为 **3** 。也可以传入授权方 APPID，指定授权方。
+
+**pageStyle** 指定授权页面的样式。**1** 表示PC扫码授权；**2** 表示微信浏览器打开。默认值为 **1**。
+
+```javascript
+const { Constand: { AUTH_TYPE_BOTH, PAGE_STYLE_PC } } = require('wechat-open-koa')
+let componentAppId = 'wx52ffab2939ad'
+let redirectUrl = 'https://domain.com/authorized'
+let authMiddleware = toolkit.auth(componentAppId, redirectUrl, AUTH_TYPE_BOTH, PAGE_STYLE_PC)
+
+// 浏览器打开该路由即可扫码授权
+app.get(`/wechat/auth/${componentAppId}`, authMiddleware)
+```
+
+#### events
+
+返回第三方平台授权事件处理中间件。
+
+```javascript
+app.use('/wechat/events', toolkit.events())
+```
+
+#### message
+
+返回授权方消息处理中间件
+
+- **componentAppId** \<string\> 第三方平台appId
+
+```javascript
+const componentAppId = 'wx52ffab2939ad'
+let msgMiddleware = toolkit.message(componentAppId) // 用户消息中间件
+
+app.post(`/wechat/message/${componentAppId}/:authorizerAppId`, msgMiddleware, (ctx, next) => {
+    console.log(ctx.state.wechat)
+    /**
+    {
+        ToUserName: 'gh_2a33e5f5a9b0',
+        FromUserName: 'oVtjJv5NEub-fbE7E6_P2_jCLMXo',
+        CreateTime: '1508406464',
+        MsgType: 'text',
+        Content: 'hello world',
+        MsgId: '6478556432393017916'
+    }
+    */
+})
+```
+
+#### 被动回复消息功能
+
+当第三方平台收到授权方用户消息时，可以使用被动回复功能回复消息。
+
+- **ctx.state.text(content)** 回复文本消息
+- **ctx.state.image(mediaId)** 回复图片
+- **ctx.state.voice(mediaId)** 回复语音
+- **ctx.state.video(mediaId [, title [, description]])** 回复视频
+- **ctx.state.music(thumbMediaId [, HQMusicUrl [, musicUrl [, title [, description]]]])** 回复音乐
+- **ctx.state.news(articles)** 回复图文
+  - **Title** 标题
+  - **Description** 描述
+  - **Url** 跳转链接
+  - **PicUrl** 缩略图链接
+
+```javascript
+let componentAppId = 'wx52ffab2939ad' // 第三方平台APPID
+let msgMiddleware = toolkit.message(componentAppId) // 用户消息中间件
+
+app.post(`/wechat/message/${componentAppId}/:authorizerAppId`, msgMiddleware, (ctx, next) => {
+    let { MsgType, Content, MediaId, Label, Title, Description, Url} = ctx.state.wechat
+    switch (MsgType) {
+        case 'text':
+            ctx.state.text(Content) // 被动回复文本消息
+            break;
+        case 'image':
+            ctx.state.image(MediaId) // 被动回复图片消息
+            break;
+        case 'voice':
+            ctx.state.voice(MediaId) // 被动回复语音消息
+            break;
+        case 'video':
+            ctx.state.video(MediaId) // 被动回复视频消息
+            break;
+        case 'location':
+            ctx.state.text(Label)
+            break;
+        case 'link':
+            ctx.state.news([{ Title, Description, Url }])
+    }
+})
+```
+
+#### autoTest
+
+返回全网发布测试用例的中间件。该中间件需要放置在 [message](#message) 中间件后面，以及其他中间件前面。
+
+- **componentAppId** \<string\> 第三方平台APPID
+
+```javascript
+let componentAppId = 'wx52ffab2939ad'
+let msgMiddleware = toolkit.message(componentAppId) // 用户消息中间件
+let testMiddleware = toolkit.autoTest(componentAppId) // 全网发布测试中间件
+
+app.post(`/wechat/message/${componentAppId}/:authorizerAppId`, msgMiddleware, testMiddleware, (ctx, next) => {
+    ctx.body = 'success'; // 响应微信服务器
+    console.log(ctx.state.wechat)
+})
+```
+
+#### oauth
+
+返回第三方平台代理微信公众号网页授权中间件。
+
+- **componentAppId** \<string\> 第三方平台APPID
+- **authorizerAppId** \<string\> 授权方APPID
+- **redirectUrl** \<string\> 授权成功后的重定向URL
+- **scope** \<string\> 网页授权的类型。可选
+- **state** \<string\> 授权的附带值。可选
+
+**scope 为授权作用域。可能的值为：snsapi_base 和 snsapi_userinfo。默认为：snsapi_base**
+
+```javascript
+const { Constant } = require('wechat-open-koa')
+let componentAppId = 'wx304925fbea25bcbe'
+let authorizerAppId = 'wxc736b9251b3c6c41'
+let redirectUrl = 'https://domain.com/authorized'
+let oauthMiddleware = toolkit.oauth(componentAppId, authorizerAppId, redirectUrl, Constant.OAUTH_TYPE_USERINFO)
+
+app.get(`/wechat/oauth/${componentAppId}/${authorizerAppId}`, oauthMiddleware)
+```
+
+
+### 类方法 `Request`：
 
 - **getAuthorizerInfo(componentAppId, componentAccessToken, authorizerAppId)** [获取授权方的账号基本信息](#getauthorizerinfo)
 
@@ -160,147 +301,8 @@ await coApi.sendText()
 
 - **getOpenAccount(authorizerAppId, authorizerAccessToken)** [获取公众号/小程序所绑定的开放平台帐号](#getopenaccount)
 
-### auth
 
-返回第三方平台授权中间件。
-
-- **componentAppId** \<string\> 第三方平台APPID
-- **redirectUrl** \<string\> 授权成功后重定向的URL
-- **authType** \<number|string\> 授权的类型
-- **pageStyle** \<number\> 页面样式
-
-**redirectUrl** 该链接的域名必须和当前服务的域名相同，而且和微信第三方平台配置的域名相同。
-
-**authType** 指定授权时显示的可选项。**1** 表示仅展示公众号、**2** 表示仅展示小程序、**3** 表示展示公众号和小程序。默认为 **3** 。也可以传入授权方 APPID，指定授权方。
-
-**pageStyle** 指定授权页面的样式。**1** 表示PC扫码授权；**2** 表示微信浏览器打开。默认值为 **1**。
-
-```javascript
-const { AUTH_TYPE_BOTH, PAGE_STYLE_PC } = require('wechat-open-koa')
-let componentAppId = 'wx52ffab2939ad'
-let redirectUrl = 'https://domain.com/authorized'
-let authMiddleware = toolkit.auth(componentAppId, redirectUrl, AUTH_TYPE_BOTH, PAGE_STYLE_PC)
-
-// 浏览器打开该路由即可扫码授权
-app.get(`/wechat/auth/${componentAppId}`, authMiddleware)
-```
-
-### events
-
-返回第三方平台授权事件处理中间件。
-
-```javascript
-app.use('/wechat/events', toolkit.events())
-```
-
-### message
-
-返回授权方消息处理中间件
-
-- **componentAppId** \<string\> 第三方平台appId
-
-```javascript
-const componentAppId = 'wx52ffab2939ad'
-let msgMiddleware = toolkit.message(componentAppId) // 用户消息中间件
-
-app.post(`/wechat/message/${componentAppId}/:authorizerAppId`, msgMiddleware, (ctx, next) => {
-    console.log(ctx.state.wechat)
-    /**
-    {
-        ToUserName: 'gh_2a33e5f5a9b0',
-        FromUserName: 'oVtjJv5NEub-fbE7E6_P2_jCLMXo',
-        CreateTime: '1508406464',
-        MsgType: 'text',
-        Content: 'hello world',
-        MsgId: '6478556432393017916'
-    }
-    */
-})
-```
-
-### 被动回复消息功能
-
-当第三方平台收到授权方用户消息时，可以使用被动回复功能回复消息。
-
-- **res.text(content)** 回复文本消息
-- **res.image(mediaId)** 回复图片
-- **res.voice(mediaId)** 回复语音
-- **res.video(mediaId [, title [, description]])** 回复视频
-- **res.music(thumbMediaId [, HQMusicUrl [, musicUrl [, title [, description]]]])** 回复音乐
-- **res.news(articles)** 回复图文
-  - **Title** 标题
-  - **Description** 描述
-  - **Url** 跳转链接
-  - **PicUrl** 缩略图链接
-
-```javascript
-let componentAppId = 'wx52ffab2939ad' // 第三方平台APPID
-let msgMiddleware = toolkit.message(componentAppId) // 用户消息中间件
-
-app.post(`/wechat/message/${componentAppId}/:authorizerAppId`, msgMiddleware, (ctx, next) => {
-    let { MsgType, Content, MediaId, Label, Title, Description, Url} = ctx.state.wechat
-    switch (MsgType) {
-        case 'text':
-            res.text(Content) // 被动回复文本消息
-            break;
-        case 'image':
-            res.image(MediaId) // 被动回复图片消息
-            break;
-        case 'voice':
-            res.voice(MediaId) // 被动回复语音消息
-            break;
-        case 'video':
-            res.video(MediaId) // 被动回复视频消息
-            break;
-        case 'location':
-            res.text(Label)
-            break;
-        case 'link':
-            res.news([{ Title, Description, Url }])
-    }
-})
-```
-
-### autoTest
-
-返回全网发布测试用例的中间件。该中间件需要放置在 [message](#message) 中间件后面，以及其他中间件前面。
-
-- **componentAppId** \<string\> 第三方平台APPID
-
-```javascript
-let componentAppId = 'wx52ffab2939ad'
-let msgMiddleware = toolkit.message(componentAppId) // 用户消息中间件
-let testMiddleware = toolkit.autoTest(componentAppId) // 全网发布测试中间件
-
-app.post(`/wechat/message/${componentAppId}/:authorizerAppId`, msgMiddleware, testMiddleware, (ctx, next) => {
-    ctx.body = 'success'; // 响应微信服务器
-    console.log(ctx.state.wechat)
-})
-```
-
-### oauth
-
-返回第三方平台代理微信公众号网页授权中间件。
-
-- **componentAppId** \<string\> 第三方平台APPID
-- **authorizerAppId** \<string\> 授权方APPID
-- **redirectUrl** \<string\> 授权成功后的重定向URL
-- **scope** \<string\> 网页授权的类型。可选
-- **state** \<string\> 授权的附带值。可选
-
-**scope 为授权作用域。可能的值为：snsapi_base 和 snsapi_userinfo。默认为：snsapi_base**
-
-```javascript
-const { OAUTH_TYPE_USERINFO } = require('wechat-open-koa')
-let componentAppId = 'wx304925fbea25bcbe'
-let authorizerAppId = 'wxc736b9251b3c6c41'
-let redirectUrl = 'https://domain.com/authorized'
-let oauthMiddleware = toolkit.oauth(componentAppId, authorizerAppId, redirectUrl, OAUTH_TYPE_USERINFO)
-
-app.get(`/wechat/oauth/${componentAppId}/${authorizerAppId}`, oauthMiddleware)
-```
-
-### getAuthorizerInfo
+#### getAuthorizerInfo
 
 获取授权方的账号基本信息
 
@@ -308,7 +310,7 @@ app.get(`/wechat/oauth/${componentAppId}/${authorizerAppId}`, oauthMiddleware)
 let ret = await Request.getAuthorizerInfo(componentAppId, componentAccessToken, authorizerAppId)
 ```
 
-### getJsApiConfig
+#### getJsApiConfig
 
 获取授权方的 js sdk 配置对象
 
@@ -328,7 +330,7 @@ let conf = Request.getJsApiConfig(authorizerAppId, authorizerJsApiTicket, url)
 */
 ```
 
-### getOauthAccessToken
+#### getOauthAccessToken
 
 获取授权方的网页授权 access token
 
@@ -341,7 +343,7 @@ let conf = Request.getJsApiConfig(authorizerAppId, authorizerJsApiTicket, url)
 let ret = await Request.getOauthAccessToken(componentAppId, componentAccessToken, authorizerAppId, code)
 ```
 
-### getUserInfo
+#### getUserInfo
 
 获取授权方微信用户的基本信息
 
@@ -352,7 +354,7 @@ let ret = await Request.getOauthAccessToken(componentAppId, componentAccessToken
 let ret = await Request.getUserInfo(authorizerAccessToken, openId)
 ```
 
-### send
+#### send
 
 发送客服消息
 
@@ -393,7 +395,7 @@ await Request.send(authorizerAccessToken, openId, 'news', {
 await Request.send(authorizerAccessToken, openId, 'mpnews', { media_id: 'MEDIA_ID' }) // 发送图文消息
 ```
 
-### getAuthorizerOptionInfo
+#### getAuthorizerOptionInfo
 
 该API用于获取授权方的公众号或小程序的选项设置信息，如：地理位置上报，语音识别开关，多客服开关。
 
@@ -406,7 +408,7 @@ await Request.send(authorizerAccessToken, openId, 'mpnews', { media_id: 'MEDIA_I
 let ret = await Request.getAuthorizerOptionInfo(componentAppId, componentAccessToken, authorizerAppId, optionName)
 ```
 
-### setAuthorizerOption
+#### setAuthorizerOption
 
 设置授权方选项
 
@@ -422,7 +424,7 @@ let ret = await Request.getAuthorizerOptionInfo(componentAppId, componentAccessT
 await Request.setAuthorizerOption(componentAppId, componentAccessToken, authorizerAppId, optionName, optionValue)
 ```
 
-### clearQuota
+#### clearQuota
 
 第三方平台对其所有API调用次数清零
 
@@ -433,7 +435,7 @@ await Request.setAuthorizerOption(componentAppId, componentAccessToken, authoriz
 await Request.clearQuota(componentAppId, componentAccessToken)
 ```
 
-### createOpenAccount
+#### createOpenAccount
 
 创建开放平台帐号并绑定公众号/小程序
 
@@ -444,7 +446,7 @@ await Request.clearQuota(componentAppId, componentAccessToken)
 let ret = await Request.createOpenAccount(authorizerAppId, authorizerAccessToken)
 ```
 
-### bindOpenAccount
+#### bindOpenAccount
 
 将公众号/小程序绑定到开放平台帐号下
 
@@ -456,7 +458,7 @@ let ret = await Request.createOpenAccount(authorizerAppId, authorizerAccessToken
 await Request.bindOpenAccount(openAppId, authorizerAppId, authorizerAccessToken)
 ```
 
-### unbindOpenAccount
+#### unbindOpenAccount
 
 将公众号/小程序从开放平台帐号下解绑
 
@@ -468,7 +470,7 @@ await Request.bindOpenAccount(openAppId, authorizerAppId, authorizerAccessToken)
 await Request.unbindOpenAccount(openAppId, authorizerAppId, authorizerAccessToken)
 ```
 
-### getOpenAccount
+#### getOpenAccount
 
 获取公众号/小程序所绑定的开放平台帐号
 
@@ -479,3 +481,6 @@ await Request.unbindOpenAccount(openAppId, authorizerAppId, authorizerAccessToke
 let ret = await Request.getOpenAccount(authorizerAppId, authorizerAccessToken)
 ```
 
+## 致谢
+
+[pengng/wechat-open-toolkit](https://github.com/pengng/wechat-open-toolkit)
