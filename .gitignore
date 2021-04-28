@@ -104,3 +104,4 @@ coverage
 
 .scannerwork/
 !._**.yaml
+**/**/node_modules

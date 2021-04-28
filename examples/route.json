@@ -1,0 +1,74 @@
+[
+  {
+    "method": "GET",
+    "path": "/",
+    "handler": "index",
+    "config": {
+      "description": "首页"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/wechat/open/authcode",
+    "handler": "authCode",
+    "config": {
+      "description": "公众号，小程序授权后回调地址"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/wechat/open/oauthcode",
+    "handler": "oauthCode",
+    "config": {
+      "description": "通过oauth授权码获取用户信息"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/wechat/open/sendmsg",
+    "handler": "sendMsg",
+    "config": {
+      "description": "测试发送消息"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/wechat/open/events",
+    "handler": "events",
+    "config": {
+      "description": "微信开放平台授权事件POST"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/wechat/open/refresh",
+    "handler": "refresh",
+    "config": {
+      "description": "微信开放平台刷新"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/wechat/open/auth/:componentAppId",
+    "handler": "auth",
+    "config": {
+      "description": "微信开放平台授权，允许第三方平台管理小程序，公众号"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/wechat/open/message/:componentAppId/:authorizerAppId",
+    "handler": "message",
+    "config": {
+      "description": "微信开放平台消息接收"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/wechat/open/oauth/:componentAppId/:authorizerAppId",
+    "handler": "oauth",
+    "config": {
+      "description": "微信开放平台认证页面跳转"
+    }
+  }
+]
